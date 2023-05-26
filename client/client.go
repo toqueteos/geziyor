@@ -12,6 +12,7 @@ import (
 
 	"github.com/chromedp/cdproto/dom"
 	"github.com/chromedp/cdproto/network"
+	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 	"github.com/toqueteos/geziyor/internal"
 	"golang.org/x/net/html/charset"
@@ -187,6 +188,7 @@ func (c *Client) doRequestChrome(req *Request) (*Response, error) {
 	var body string
 	var res *network.Response
 	var defaultPreActions = []chromedp.Action{
+		enableLifeCycleEvents(),
 		network.Enable(),
 		network.SetExtraHTTPHeaders(ConvertHeaderToMap(req.Header)),
 		chromedp.ActionFunc(func(ctx context.Context) error {
@@ -199,7 +201,8 @@ func (c *Client) doRequestChrome(req *Request) (*Response, error) {
 			})
 			return nil
 		}),
-		chromedp.Navigate(req.URL.String()),
+		navigateAndWaitFor(req.URL.String(), "networkIdle"),
+		// chromedp.Navigate(req.URL.String()),
 		chromedp.WaitReady(":root"),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			node, err := dom.GetDocument().Do(ctx)
@@ -244,6 +247,67 @@ func (c *Client) doRequestChrome(req *Request) (*Response, error) {
 	}
 
 	return &response, nil
+}
+
+// enableLifeCycleEvents was taken from https://github.com/chromedp/chromedp/issues/431
+func enableLifeCycleEvents() chromedp.ActionFunc {
+	return func(ctx context.Context) error {
+		err := page.Enable().Do(ctx)
+		if err != nil {
+			return err
+		}
+		err = page.SetLifecycleEventsEnabled(true).Do(ctx)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+}
+
+// navigateAndWaitFor was taken from https://github.com/chromedp/chromedp/issues/431
+func navigateAndWaitFor(url string, eventName string) chromedp.ActionFunc {
+	return func(ctx context.Context) error {
+		_, _, _, err := page.Navigate(url).Do(ctx)
+		if err != nil {
+			return err
+		}
+
+		return waitFor(ctx, eventName)
+	}
+}
+
+// waitFor blocks until eventName is received.
+// Examples of events you can wait for:
+//
+//	init, DOMContentLoaded, firstPaint,
+//	firstContentfulPaint, firstImagePaint,
+//	firstMeaningfulPaintCandidate,
+//	load, networkAlmostIdle, firstMeaningfulPaint, networkIdle
+//
+// This is not super reliable, I've already found incidental cases where
+// networkIdle was sent before load. It's probably smart to see how
+// puppeteer implements this exactly.
+//
+// It was taken from https://github.com/chromedp/chromedp/issues/431
+func waitFor(ctx context.Context, eventName string) error {
+	ch := make(chan struct{})
+	cctx, cancel := context.WithCancel(ctx)
+	chromedp.ListenTarget(cctx, func(ev interface{}) {
+		switch e := ev.(type) {
+		case *page.EventLifecycleEvent:
+			if e.Name == eventName {
+				cancel()
+				close(ch)
+			}
+		}
+	})
+	select {
+	case <-ch:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
 }
 
 // SetCookies handles the receipt of the cookies in a reply for the given URL
