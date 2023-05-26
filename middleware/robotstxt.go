@@ -1,10 +1,10 @@
 package middleware
 
 import (
-	"github.com/geziyor/geziyor/client"
-	"github.com/geziyor/geziyor/internal"
-	"github.com/geziyor/geziyor/metrics"
 	"github.com/temoto/robotstxt"
+	"github.com/toqueteos/geziyor/client"
+	"github.com/toqueteos/geziyor/internal"
+	"github.com/toqueteos/geziyor/metrics"
 	"strconv"
 	"sync"
 )

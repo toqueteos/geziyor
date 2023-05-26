@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"github.com/geziyor/geziyor/client"
 	"github.com/stretchr/testify/assert"
+	"github.com/toqueteos/geziyor/client"
 	"strings"
 	"testing"
 )
