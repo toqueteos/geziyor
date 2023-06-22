@@ -1,16 +1,19 @@
 package middleware
 
 import (
+	"context"
+	"strconv"
+	"sync"
+
 	"github.com/temoto/robotstxt"
 	"github.com/toqueteos/geziyor/client"
 	"github.com/toqueteos/geziyor/internal"
 	"github.com/toqueteos/geziyor/metrics"
-	"strconv"
-	"sync"
 )
 
 // RobotsTxt middleware filters out requests forbidden by the robots.txt exclusion standard.
 type RobotsTxt struct {
+	ctx            context.Context
 	metrics        *metrics.Metrics
 	robotsDisabled bool
 	client         *client.Client
@@ -18,8 +21,9 @@ type RobotsTxt struct {
 	robotsMap      map[string]*robotstxt.RobotsData
 }
 
-func NewRobotsTxt(client *client.Client, metrics *metrics.Metrics, robotsDisabled bool) RequestProcessor {
+func NewRobotsTxt(ctx context.Context, client *client.Client, metrics *metrics.Metrics, robotsDisabled bool) RequestProcessor {
 	return &RobotsTxt{
+		ctx:            ctx,
 		metrics:        metrics,
 		robotsDisabled: robotsDisabled,
 		client:         client,
@@ -38,7 +42,7 @@ func (m *RobotsTxt) ProcessRequest(r *client.Request) {
 	m.mut.RUnlock()
 
 	if !exists {
-		robotsReq, err := client.NewRequest("GET", r.URL.Scheme+"://"+r.Host+"/robots.txt", nil)
+		robotsReq, err := client.NewRequest(m.ctx, "GET", r.URL.Scheme+"://"+r.Host+"/robots.txt", nil)
 		if err != nil {
 			return // Don't Do anything
 		}

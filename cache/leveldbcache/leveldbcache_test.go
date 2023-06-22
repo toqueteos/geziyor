@@ -1,11 +1,12 @@
 package leveldbcache
 
 import (
-	"github.com/toqueteos/geziyor/cache"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/toqueteos/geziyor/cache"
 )
 
 func TestDiskCache(t *testing.T) {
@@ -13,7 +14,7 @@ func TestDiskCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TempDir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
 
 	c, err := New(filepath.Join(tempDir, "Db"))
 	if err != nil {

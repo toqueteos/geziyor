@@ -1,10 +1,11 @@
 package diskcache
 
 import (
-	"github.com/toqueteos/geziyor/cache"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/toqueteos/geziyor/cache"
 )
 
 func TestDiskCache(t *testing.T) {
@@ -12,7 +13,7 @@ func TestDiskCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TempDir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
 
 	cache.PleaseCache(t, New(tempDir))
 }

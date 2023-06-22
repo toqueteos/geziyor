@@ -1,17 +1,21 @@
-# Geziyor
+[![Go Reference](https://pkg.go.dev/badge/github.com/toqueteos/geziyor.svg)](https://pkg.go.dev/github.com/toqueteos/geziyor)
 
-Geziyor is a blazing fast web crawling and web scraping framework. It can be used to crawl websites and extract structured data from them. Geziyor is useful for a wide range of purposes such as data mining, monitoring and automated testing.
+# Geziyor (forked)
 
-[![GoDoc](https://godoc.org/github.com/toqueteos/geziyor?status.svg)](https://godoc.org/github.com/toqueteos/geziyor)
-[![report card](https://goreportcard.com/badge/github.com/toqueteos/geziyor)](http://goreportcard.com/report/geziyor/geziyor)
-[![Code Coverage](https://img.shields.io/codecov/c/github/geziyor/geziyor/master.svg)](https://codecov.io/github/geziyor/geziyor?branch=master)
+Geziyor is a web crawling and web scraping framework.
+
+## About this fork
+
+- Updated default chromedp actions to wait for network requests to finish
+- Added `context.Context` support for easy cancellation
+- Lower timeout values
 
 ## Features
 
 - **JS Rendering**
-- 5.000+ Requests/Sec
+- 5.000+ requests/second
 - Caching (Memory/Disk/LevelDB)
-- Automatic Data Exporting (JSON, CSV, or custom)
+- Automatic Data Exporting (JSON, JSONL, CSV, or custom)
 - Metrics (Prometheus, Expvar, or custom)
 - Limit Concurrency (Global/Per Domain)
 - Request Delays (Constant/Randomized)
@@ -19,26 +23,23 @@ Geziyor is a blazing fast web crawling and web scraping framework. It can be use
 - Automatic response decoding to UTF-8
 - Proxy management (Single, Round-Robin, Custom)
 
-See scraper [Options](https://godoc.org/github.com/toqueteos/geziyor#Options) for all custom settings.
-
-## Status
-
-We highly recommend you to use Geziyor with go modules.
+See scraper [Options](https://pkg.go.dev/github.com/toqueteos/geziyor#Options) for all custom settings.
 
 ## Usage
 
-This example extracts all quotes from _quotes.toscrape.com_ and exports to JSON file.
+This example extracts all quotes from _[quotes.toscrape.com](http://quotes.toscrape.com)_ and exports to JSON file.
 
 ```go
 func main() {
-    geziyor.NewGeziyor(&geziyor.Options{
+    ctx := context.TODO()
+    geziyor.NewGeziyor(ctx, &geziyor.Options{
         StartURLs: []string{"http://quotes.toscrape.com/"},
         ParseFunc: quotesParse,
         Exporters: []export.Exporter{&export.JSON{}},
-    }).Start()
+    }).Start(ctx)
 }
 
-func quotesParse(g *geziyor.Geziyor, r *client.Response) {
+func quotesParse(ctx context.Context, g *geziyor.Geziyor, r *client.Response) {
     r.HTMLDoc.Find("div.quote").Each(func(i int, s *goquery.Selection) {
         g.Exports <- map[string]interface{}{
             "text":   s.Find("span.text").Text(),
@@ -46,38 +47,46 @@ func quotesParse(g *geziyor.Geziyor, r *client.Response) {
         }
     })
     if href, ok := r.HTMLDoc.Find("li.next > a").Attr("href"); ok {
-        g.Get(r.JoinURL(href), quotesParse)
+        g.Get(ctx, r.JoinURL(href), quotesParse)
     }
 }
 ```
 
 See [tests](https://github.com/toqueteos/geziyor/blob/master/geziyor_test.go) for more usage examples.
 
-## Documentation
+## Installation
 
-### Installation
+```bash
+go get -u github.com/toqueteos/geziyor
+```
 
-    go get -u github.com/toqueteos/geziyor
+If you want to make JS rendered requests, a local Chrome is required.
 
-If you want to make JS rendered requests, make sure you have Chrome installed.
+Alternatively you can use any Chromium-based headless docker image such as the one available from the [Ferret project](https://www.montferret.dev):
+
+```bash
+docker run --rm -d -p 9222:9222 montferret/chromium
+```
+
+**Don't forget to set `Options.BrowserEndpoint`!**
 
 **NOTE**: macOS limits the maximum number of open file descriptors.
 If you want to make concurrent requests over 256, you need to increase limits.
 Read [this](https://wilsonmar.github.io/maximum-limits/) for more.
 
-### Making Normal Requests
+## Making Normal Requests
 
 Initial requests start with `StartURLs []string` field in `Options`.
 Geziyor makes concurrent requests to those URLs.
 After reading response, `ParseFunc func(g *Geziyor, r *Response)` called.
 
 ```go
-geziyor.NewGeziyor(&geziyor.Options{
-    StartURLs: []string{"http://api.ipify.org"},
-    ParseFunc: func(g *geziyor.Geziyor, r *client.Response) {
+geziyor.NewGeziyor(ctx, &geziyor.Options{
+    StartURLs: []string{"https://httpbingo.org/ip"},
+    ParseFunc: func(ctx context.Context, g *geziyor.Geziyor, r *client.Response) {
         fmt.Println(string(r.Body))
     },
-}).Start()
+}).Start(ctx)
 ```
 
 If you want to manually create first requests, set `StartRequestsFunc`.
@@ -85,35 +94,38 @@ If you want to manually create first requests, set `StartRequestsFunc`.
 You can make requests using `Geziyor` [methods](https://godoc.org/github.com/toqueteos/geziyor#Geziyor):
 
 ```go
-geziyor.NewGeziyor(&geziyor.Options{
-    StartRequestsFunc: func(g *geziyor.Geziyor) {
-    	g.Get("https://httpbin.org/anything", g.Opt.ParseFunc)
-        g.Head("https://httpbin.org/anything", g.Opt.ParseFunc)
+geziyor.NewGeziyor(ctx, &geziyor.Options{
+    StartRequestsFunc: func(ctx context.Context, g *geziyor.Geziyor) {
+    	g.Get(ctx, "https://httpbingo.org/anything", g.Opt.ParseFunc)
+        g.Head(ctx, "https://httpbingo.org/anything", g.Opt.ParseFunc)
     },
-    ParseFunc: func(g *geziyor.Geziyor, r *client.Response) {
+    ParseFunc: func(ctx context.Context, g *geziyor.Geziyor, r *client.Response) {
         fmt.Println(string(r.Body))
     },
-}).Start()
+}).Start(ctx)
 ```
 
-### Making JS Rendered Requests
+## Making JS Rendered Requests
 
 JS Rendered requests can be made using `GetRendered` method.
-By default, geziyor uses local Chrome application CLI to start Chrome browser. Set `BrowserEndpoint` option to use different chrome instance. Such as, "ws://localhost:3000"
+
+By default, geziyor tries to launch a local Chrome instance, if there's one available locally.
+
+You can set the `BrowserEndpoint` option to use connect to a different Chrome instance.
 
 ```go
-geziyor.NewGeziyor(&geziyor.Options{
-    StartRequestsFunc: func(g *geziyor.Geziyor) {
-        g.GetRendered("https://httpbin.org/anything", g.Opt.ParseFunc)
+geziyor.NewGeziyor(ctx, &geziyor.Options{
+    StartRequestsFunc: func(ctx context.Context, g *geziyor.Geziyor) {
+        g.GetRendered(ctx, "https://httpbingo.org/anything", g.Opt.ParseFunc)
     },
-    ParseFunc: func(g *geziyor.Geziyor, r *client.Response) {
+    ParseFunc: func(ctx context.Context, g *geziyor.Geziyor, r *client.Response) {
         fmt.Println(string(r.Body))
     },
-    //BrowserEndpoint: "ws://localhost:3000",
-}).Start()
+    BrowserEndpoint: "ws://localhost:9292",
+}).Start(ctx)
 ```
 
-### Extracting Data
+## Extracting Data
 
 We can extract HTML elements using `response.HTMLDoc`. HTMLDoc is Goquery's [Document](https://godoc.org/github.com/PuerkitoBio/goquery#Document).
 
@@ -121,25 +133,25 @@ HTMLDoc can be accessible on Response if response is HTML and can be parsed usin
 If response isn't HTML, `response.HTMLDoc` would be `nil`.
 
 ```go
-geziyor.NewGeziyor(&geziyor.Options{
+geziyor.NewGeziyor(ctx, &geziyor.Options{
     StartURLs: []string{"http://quotes.toscrape.com/"},
-    ParseFunc: func(g *geziyor.Geziyor, r *client.Response) {
+    ParseFunc: func(ctx context.Context, g *geziyor.Geziyor, r *client.Response) {
         r.HTMLDoc.Find("div.quote").Each(func(_ int, s *goquery.Selection) {
             log.Println(s.Find("span.text").Text(), s.Find("small.author").Text())
         })
     },
-}).Start()
+}).Start(ctx)
 ```
 
-### Exporting Data
+## Exporting Data
 
 You can export data automatically using exporters. Just send data to `Geziyor.Exports` chan.
 [Available exporters](https://godoc.org/github.com/toqueteos/geziyor/export)
 
 ```go
-geziyor.NewGeziyor(&geziyor.Options{
+geziyor.NewGeziyor(ctx, &geziyor.Options{
     StartURLs: []string{"http://quotes.toscrape.com/"},
-    ParseFunc: func(g *geziyor.Geziyor, r *client.Response) {
+    ParseFunc: func(ctx context.Context, g *geziyor.Geziyor, r *client.Response) {
         r.HTMLDoc.Find("div.quote").Each(func(_ int, s *goquery.Selection) {
             g.Exports <- map[string]interface{}{
                 "text":   s.Find("span.text").Text(),
@@ -148,29 +160,29 @@ geziyor.NewGeziyor(&geziyor.Options{
         })
     },
     Exporters: []export.Exporter{&export.JSON{}},
-}).Start()
+}).Start(ctx)
 ```
 
-### Custom Requests - Passing Metadata To Callbacks
+## Custom Requests - Passing Metadata To Callbacks
 
 You can create custom requests with `client.NewRequest`
 
 Use that request on `geziyor.Do(request, callback)`
 
 ```go
-geziyor.NewGeziyor(&geziyor.Options{
-    StartRequestsFunc: func(g *geziyor.Geziyor) {
-        req, _ := client.NewRequest("GET", "https://httpbin.org/anything", nil)
+geziyor.NewGeziyor(ctx, &geziyor.Options{
+    StartRequestsFunc: func(ctx context.Context, g *geziyor.Geziyor) {
+        req, _ := client.NewRequest(ctx, "GET", "https://httpbingo.org/anything", nil)
         req.Meta["key"] = "value"
         g.Do(req, g.Opt.ParseFunc)
     },
-    ParseFunc: func(g *geziyor.Geziyor, r *client.Response) {
+    ParseFunc: func(ctx context.Context, g *geziyor.Geziyor, r *client.Response) {
         fmt.Println("This is our data from request: ", r.Request.Meta["key"])
     },
-}).Start()
+}).Start(ctx)
 ```
 
-### Proxy - Use proxy per request
+## Proxy - Use proxy per request
 
 If you want to use proxy for your requests, and you have 1 proxy, you can just set these env values:
 `HTTP_PROXY`
@@ -185,25 +197,24 @@ Proxies can be HTTP, HTTPS and SOCKS5.
 Note: If you use `http` scheme for proxy, It'll be used for http requests and not for https requests.
 
 ```go
-geziyor.NewGeziyor(&geziyor.Options{
-    StartURLs:         []string{"http://httpbin.org/anything"},
+geziyor.NewGeziyor(ctx, &geziyor.Options{
+    StartURLs:         []string{"http://httpbingo.org/anything"},
     ParseFunc:         parseFunc,
     ProxyFunc:         client.RoundRobinProxy("http://some-http-proxy.com", "https://some-https-proxy.com", "socks5://some-socks5-proxy.com"),
-}).Start()
+}).Start(ctx)
 ```
 
 ## Benchmark
-
-**8748 request per seconds** on _Macbook Pro 15" 2016_
 
 See [tests](https://github.com/toqueteos/geziyor/blob/master/geziyor_test.go) for this benchmark function:
 
 ```bash
 >> go test -run none -bench Requests -benchtime 10s
-goos: darwin
+goos: linux
 goarch: amd64
 pkg: github.com/toqueteos/geziyor
-BenchmarkRequests-8   	  200000	    108710 ns/op
+cpu: AMD Ryzen 7 7700X 8-Core Processor
+BenchmarkRequests-16              362724             38632 ns/op
 PASS
-ok  	github.com/toqueteos/geziyor	22.861s
+ok      github.com/toqueteos/geziyor    14.352s
 ```

@@ -1,10 +1,11 @@
 package client
 
 import (
-	"github.com/PuerkitoBio/goquery"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 // Response type wraps http.Response

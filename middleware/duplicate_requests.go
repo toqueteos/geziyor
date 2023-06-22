@@ -1,9 +1,10 @@
 package middleware
 
 import (
+	"sync"
+
 	"github.com/toqueteos/geziyor/client"
 	"github.com/toqueteos/geziyor/internal"
-	"sync"
 )
 
 // DuplicateRequests checks for already visited URLs

@@ -1,11 +1,12 @@
 package export
 
 import (
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestJSONLineExporter_Export(t *testing.T) {

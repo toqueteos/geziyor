@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+
 	"github.com/PuerkitoBio/goquery"
 	"github.com/toqueteos/geziyor/client"
 	"github.com/toqueteos/geziyor/internal"

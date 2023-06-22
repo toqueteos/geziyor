@@ -20,5 +20,7 @@
 # Output files
 out.*
 
-# Cache files
 .cache/
+1.jsonl
+2.json
+post_json.json

@@ -1,6 +1,8 @@
 package geziyor
 
 import (
+	"context"
+
 	"github.com/chromedp/chromedp"
 	"github.com/toqueteos/geziyor/cache"
 	"github.com/toqueteos/geziyor/client"
@@ -41,7 +43,7 @@ type Geziyor struct {
 
 // NewGeziyor creates new Geziyor with default values.
 // If options provided, options
-func NewGeziyor(opt *Options) *Geziyor {
+func NewGeziyor(ctx context.Context, opt *Options) *Geziyor {
 
 	// Default Options
 	if opt.UserAgent == "" {
@@ -121,7 +123,7 @@ func NewGeziyor(opt *Options) *Geziyor {
 	geziyor.reqMiddlewares = append(geziyor.reqMiddlewares, metricsMiddleware)
 	geziyor.resMiddlewares = append(geziyor.resMiddlewares, metricsMiddleware)
 
-	robotsMiddleware := middleware.NewRobotsTxt(geziyor.Client, geziyor.metrics, opt.RobotsTxtDisabled)
+	robotsMiddleware := middleware.NewRobotsTxt(ctx, geziyor.Client, geziyor.metrics, opt.RobotsTxtDisabled)
 	geziyor.reqMiddlewares = append(geziyor.reqMiddlewares, robotsMiddleware)
 
 	// Custom Middlewares
@@ -139,7 +141,7 @@ func NewGeziyor(opt *Options) *Geziyor {
 }
 
 // Start starts scraping
-func (g *Geziyor) Start() {
+func (g *Geziyor) Start(ctx context.Context) {
 	internal.Logger.Println("Scraping Started")
 
 	// Metrics
@@ -159,10 +161,10 @@ func (g *Geziyor) Start() {
 
 	// Start Requests
 	if g.Opt.StartRequestsFunc != nil {
-		g.Opt.StartRequestsFunc(g)
+		g.Opt.StartRequestsFunc(ctx, g)
 	} else {
 		for _, startURL := range g.Opt.StartURLs {
-			g.Get(startURL, g.Opt.ParseFunc)
+			g.Get(ctx, startURL, g.Opt.ParseFunc)
 		}
 	}
 
@@ -174,8 +176,8 @@ func (g *Geziyor) Start() {
 }
 
 // Get issues a GET to the specified URL.
-func (g *Geziyor) Get(url string, callback func(g *Geziyor, r *client.Response)) {
-	req, err := client.NewRequest("GET", url, nil)
+func (g *Geziyor) Get(ctx context.Context, url string, callback ParseFunc) {
+	req, err := client.NewRequest(ctx, "GET", url, nil)
 	if err != nil {
 		internal.Logger.Printf("Request creating error %v\n", err)
 		return
@@ -186,8 +188,8 @@ func (g *Geziyor) Get(url string, callback func(g *Geziyor, r *client.Response))
 // GetRendered issues GET request using headless browser
 // Opens up a new Chrome instance, makes request, waits for rendering HTML DOM and closed.
 // Rendered requests only supported for GET requests.
-func (g *Geziyor) GetRendered(url string, callback func(g *Geziyor, r *client.Response)) {
-	req, err := client.NewRequest("GET", url, nil)
+func (g *Geziyor) GetRendered(ctx context.Context, url string, callback ParseFunc) {
+	req, err := client.NewRequest(ctx, "GET", url, nil)
 	if err != nil {
 		internal.Logger.Printf("Request creating error %v\n", err)
 		return
@@ -197,8 +199,8 @@ func (g *Geziyor) GetRendered(url string, callback func(g *Geziyor, r *client.Re
 }
 
 // Head issues a HEAD to the specified URL
-func (g *Geziyor) Head(url string, callback func(g *Geziyor, r *client.Response)) {
-	req, err := client.NewRequest("HEAD", url, nil)
+func (g *Geziyor) Head(ctx context.Context, url string, callback ParseFunc) {
+	req, err := client.NewRequest(ctx, "HEAD", url, nil)
 	if err != nil {
 		internal.Logger.Printf("Request creating error %v\n", err)
 		return
@@ -207,8 +209,8 @@ func (g *Geziyor) Head(url string, callback func(g *Geziyor, r *client.Response)
 }
 
 // Post issues a POST to the specified URL
-func (g *Geziyor) Post(url string, body io.Reader, callback func(g *Geziyor, r *client.Response)) {
-	req, err := client.NewRequest("POST", url, body)
+func (g *Geziyor) Post(ctx context.Context, url string, body io.Reader, callback ParseFunc) {
+	req, err := client.NewRequest(ctx, "POST", url, body)
 	if err != nil {
 		internal.Logger.Printf("Request creating error %v\n", err)
 		return
@@ -217,7 +219,7 @@ func (g *Geziyor) Post(url string, body io.Reader, callback func(g *Geziyor, r *
 }
 
 // Do sends an HTTP request
-func (g *Geziyor) Do(req *client.Request, callback func(g *Geziyor, r *client.Response)) {
+func (g *Geziyor) Do(req *client.Request, callback ParseFunc) {
 	if g.shutdown {
 		return
 	}
@@ -230,7 +232,7 @@ func (g *Geziyor) Do(req *client.Request, callback func(g *Geziyor, r *client.Re
 }
 
 // Do sends an HTTP request
-func (g *Geziyor) do(req *client.Request, callback func(g *Geziyor, r *client.Response)) {
+func (g *Geziyor) do(req *client.Request, callback ParseFunc) {
 	g.acquireSem(req)
 	defer g.releaseSem(req)
 	defer g.wgRequests.Done()
@@ -246,7 +248,7 @@ func (g *Geziyor) do(req *client.Request, callback func(g *Geziyor, r *client.Re
 	res, err := g.Client.DoRequest(req)
 	if err != nil {
 		if g.Opt.ErrorFunc != nil {
-			g.Opt.ErrorFunc(g, req, err)
+			g.Opt.ErrorFunc(req.Context(), g, req, err)
 		} else {
 			internal.Logger.Println(err)
 		}
@@ -259,10 +261,10 @@ func (g *Geziyor) do(req *client.Request, callback func(g *Geziyor, r *client.Re
 
 	// Callbacks
 	if callback != nil {
-		callback(g, res)
+		callback(req.Context(), g, res)
 	} else {
 		if g.Opt.ParseFunc != nil {
-			g.Opt.ParseFunc(g, res)
+			g.Opt.ParseFunc(req.Context(), g, res)
 		}
 	}
 }

@@ -1,17 +1,20 @@
 package middleware
 
 import (
-	"github.com/stretchr/testify/assert"
-	"github.com/toqueteos/geziyor/client"
+	"context"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/toqueteos/geziyor/client"
 )
 
 func TestDuplicateRequests_ProcessRequest(t *testing.T) {
+	ctx := context.Background()
 	longURL := "https://example.com" + strings.Repeat("/path", 50)
-	req, err := client.NewRequest("GET", longURL, nil)
+	req, err := client.NewRequest(ctx, "GET", longURL, nil)
 	assert.NoError(t, err)
-	req2, err := client.NewRequest("GET", longURL, nil)
+	req2, err := client.NewRequest(ctx, "GET", longURL, nil)
 	assert.NoError(t, err)
 
 	duplicateRequestsProcessor := DuplicateRequests{RevisitEnabled: false}

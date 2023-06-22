@@ -11,7 +11,6 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"github.com/toqueteos/geziyor/cache/memorycache"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -19,6 +18,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/toqueteos/geziyor/cache/memorycache"
 )
 
 type Policy int

@@ -1,16 +1,22 @@
 package geziyor
 
 import (
+	"context"
+	"net/http"
+	"net/url"
+	"time"
+
 	"github.com/chromedp/chromedp"
 	"github.com/toqueteos/geziyor/cache"
 	"github.com/toqueteos/geziyor/client"
 	"github.com/toqueteos/geziyor/export"
 	"github.com/toqueteos/geziyor/metrics"
 	"github.com/toqueteos/geziyor/middleware"
-	"net/http"
-	"net/url"
-	"time"
 )
+
+type ParseFunc func(ctx context.Context, g *Geziyor, r *client.Response)
+type ErrorFunc func(ctx context.Context, g *Geziyor, r *client.Request, err error)
+type StartRequestsFunc func(ctx context.Context, g *Geziyor)
 
 // Options is custom options type for Geziyor
 type Options struct {
@@ -49,7 +55,7 @@ type Options struct {
 
 	// ErrorFunc is callback of errors.
 	// If not defined, all errors will be logged.
-	ErrorFunc func(g *Geziyor, r *client.Request, err error)
+	ErrorFunc ErrorFunc
 
 	// For extracting data
 	Exporters []export.Exporter
@@ -67,7 +73,7 @@ type Options struct {
 	MetricsType metrics.Type
 
 	// ParseFunc is callback of StartURLs response.
-	ParseFunc func(g *Geziyor, r *client.Response)
+	ParseFunc ParseFunc
 
 	// If true, HTML parsing is disabled to improve performance.
 	ParseHTMLDisabled bool
@@ -109,7 +115,7 @@ type Options struct {
 	RobotsTxtDisabled bool
 
 	// StartRequestsFunc called on scraper start
-	StartRequestsFunc func(g *Geziyor)
+	StartRequestsFunc StartRequestsFunc
 
 	// First requests will made to this url array. (Concurrently)
 	StartURLs []string

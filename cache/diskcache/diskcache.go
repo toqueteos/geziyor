@@ -1,14 +1,14 @@
 // Package diskcache provides an implementation of cache.Cache that uses the diskv package
 // to supplement an in-memory map with persistent storage
-//
 package diskcache
 
 import (
 	"bytes"
 	"crypto/md5"
 	"encoding/hex"
-	"github.com/peterbourgon/diskv"
 	"io"
+
+	"github.com/peterbourgon/diskv"
 )
 
 // Cache is an implementation of cache.Cache that supplements the in-memory map with persistent storage

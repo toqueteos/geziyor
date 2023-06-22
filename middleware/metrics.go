@@ -1,9 +1,10 @@
 package middleware
 
 import (
+	"strconv"
+
 	"github.com/toqueteos/geziyor/client"
 	"github.com/toqueteos/geziyor/metrics"
-	"strconv"
 )
 
 // Metrics sets stats for request and responses

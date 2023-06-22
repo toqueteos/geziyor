@@ -1,13 +1,15 @@
 package client
 
 import (
+	"context"
 	"fmt"
-	"github.com/chromedp/chromedp"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
+
+	"github.com/chromedp/chromedp"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSetDefaultHeader(t *testing.T) {
@@ -95,13 +97,14 @@ func TestConvertMapToHeader(t *testing.T) {
 }
 
 func TestCharsetFromHeaders(t *testing.T) {
+	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=iso-8859-9")
 		fmt.Fprint(w, "G\xfcltekin")
 	}))
 	defer ts.Close()
 
-	req, _ := NewRequest("GET", ts.URL, nil)
+	req, _ := NewRequest(ctx, "GET", ts.URL, nil)
 	res, _ := newClientDefault().DoRequest(req)
 
 	if string(res.Body) != "Gültekin" {
@@ -110,13 +113,14 @@ func TestCharsetFromHeaders(t *testing.T) {
 }
 
 func TestCharsetFromBody(t *testing.T) {
+	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprint(w, "G\xfcltekin")
 	}))
 	defer ts.Close()
 
-	req, _ := NewRequest("GET", ts.URL, nil)
+	req, _ := NewRequest(ctx, "GET", ts.URL, nil)
 	res, _ := newClientDefault().DoRequest(req)
 
 	if string(res.Body) != "Gültekin" {
@@ -125,13 +129,14 @@ func TestCharsetFromBody(t *testing.T) {
 }
 
 func TestCharsetProvidedWithRequest(t *testing.T) {
+	ctx := context.Background()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprint(w, "G\xfcltekin")
 	}))
 	defer ts.Close()
 
-	req, _ := NewRequest("GET", ts.URL, nil)
+	req, _ := NewRequest(ctx, "GET", ts.URL, nil)
 	req.Encoding = "windows-1254"
 	res, _ := newClientDefault().DoRequest(req)
 
@@ -141,10 +146,11 @@ func TestCharsetProvidedWithRequest(t *testing.T) {
 }
 
 func TestRetry(t *testing.T) {
-	req, _ := NewRequest("GET", "https://httpbin.org/status/500", nil)
+	ctx := context.Background()
+	req, _ := NewRequest(ctx, "GET", "https://httpbingo.org/status/500", nil)
 	res, err := newClientDefault().DoRequest(req)
 	assert.Nil(t, res)
-	assert.Error(t, err)
+	assert.EqualError(t, err, "error due to status code 500")
 }
 
 // newClientDefault creates new client with default options

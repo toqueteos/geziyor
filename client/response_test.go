@@ -1,12 +1,15 @@
 package client
 
 import (
-	"github.com/stretchr/testify/assert"
+	"context"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestResponse_JoinURL(t *testing.T) {
-	req, _ := NewRequest("GET", "https://localhost.com/test/a.html", nil)
+	ctx := context.Background()
+	req, _ := NewRequest(ctx, "GET", "https://localhost.com/test/a.html", nil)
 	resp := Response{Request: req}
 
 	joinedURL := resp.JoinURL("/source")

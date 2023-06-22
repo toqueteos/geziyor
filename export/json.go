@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/toqueteos/geziyor/internal"
 	"os"
+
+	"github.com/toqueteos/geziyor/internal"
 )
 
 // JSONLine exports response data as JSON streaming file
@@ -18,11 +19,10 @@ type JSONLine struct {
 
 // Export exports response data as JSON streaming file
 func (e *JSONLine) Export(exports chan interface{}) error {
-
-	// Create or append file
-	file, err := os.OpenFile(internal.DefaultString(e.FileName, "out.json"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	filename := internal.DefaultString(e.FileName, "out.json")
+	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
-		return fmt.Errorf("output file creation error: %w", err)
+		return fmt.Errorf("could not open file %q: %w", filename, err)
 	}
 	defer file.Close()
 
@@ -48,50 +48,61 @@ type JSON struct {
 
 // Export exports response data as JSON
 func (e *JSON) Export(exports chan interface{}) error {
-
-	// Create or append file
-	file, err := os.OpenFile(internal.DefaultString(e.FileName, "out.json"), os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	filename := internal.DefaultString(e.FileName, "out.json")
+	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
-		return fmt.Errorf("output file creation error: %w", err)
+		return fmt.Errorf("could not open file %q: %w", filename, err)
 	}
 	defer file.Close()
 
 	_, err = file.Write([]byte("[\n"))
 	if err != nil {
-		return fmt.Errorf("file write error: %w", err)
+		return fmt.Errorf("could not write json start: %w", err)
 	}
 
-	// Export data as responses came
+	// Write first line
 	for res := range exports {
-		data, err := jsonMarshalLine(res, e.EscapeHTML)
+		data, err := marshalLine("\t", res, e.EscapeHTML)
+		if err != nil {
+			internal.Logger.Printf("JSON encoding error on exporter: %v\n", err)
+			break
+		}
+		_, err = file.Write(data)
+		if err != nil {
+			return fmt.Errorf("could not write json result: %w", err)
+		}
+		// Forcibly break, this loop only goes through the first result received via exports channel
+		break
+	}
+
+	// Write all others
+	for res := range exports {
+		data, err := marshalLine(",\n\t", res, e.EscapeHTML)
 		if err != nil {
 			internal.Logger.Printf("JSON encoding error on exporter: %v\n", err)
 			continue
 		}
 		_, err = file.Write(data)
 		if err != nil {
-			return fmt.Errorf("file write error: %w", err)
+			return fmt.Errorf("could not write json result: %w", err)
 		}
 	}
 
-	_, err = file.Write([]byte("]\n"))
+	_, err = file.WriteString("]\n")
 	if err != nil {
-		return fmt.Errorf("file write error: %w", err)
+		return fmt.Errorf("could not write json end: %w", err)
 	}
 
 	return nil
 }
 
-// jsonMarshalLine adds tab and comma around actual data
-func jsonMarshalLine(t interface{}, escapeHTML bool) ([]byte, error) {
-	buffer := &bytes.Buffer{}
-	encoder := json.NewEncoder(buffer)
+func marshalLine(prefix string, t interface{}, escapeHTML bool) ([]byte, error) {
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
 	encoder.SetEscapeHTML(escapeHTML)
 
-	buffer.Write([]byte("	"))         // Tab char
-	err := encoder.Encode(t)          // Write actual data
-	buffer.Truncate(buffer.Len() - 1) // Remove last newline char
-	buffer.Write([]byte(",\n"))       // Write comma and newline char
+	buf.WriteString(prefix)
+	err := encoder.Encode(t) // Write actual data
 
-	return buffer.Bytes(), err
+	return buf.Bytes(), err
 }

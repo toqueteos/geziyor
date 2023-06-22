@@ -69,7 +69,7 @@ func NewClient(opt *Options) *Client {
 		Transport: &http.Transport{
 			Proxy: proxyFunction,
 			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
+				Timeout:   10 * time.Second,
 				KeepAlive: 30 * time.Second,
 				DualStack: true,
 			}).DialContext,
@@ -80,7 +80,7 @@ func NewClient(opt *Options) *Client {
 			TLSHandshakeTimeout:   10 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
 		},
-		Timeout: time.Second * 180, // Google's timeout
+		Timeout: time.Second * 10, // Google's timeout
 	}
 
 	client := Client{
@@ -101,21 +101,22 @@ func (c *Client) DoRequest(req *Request) (resp *Response, err error) {
 
 	// Retry on Error
 	if err != nil {
-		if req.retryCounter < c.opt.RetryTimes {
-			req.retryCounter++
+		if req.RetryCount() < c.opt.RetryTimes {
+			req.RetryCountInc()
 			internal.Logger.Println("Retrying:", req.URL.String())
 			return c.DoRequest(req)
 		}
-		return resp, err
+		return nil, err
 	}
 
 	// Retry on http status codes
 	if internal.ContainsInt(c.opt.RetryHTTPCodes, resp.StatusCode) {
-		if req.retryCounter < c.opt.RetryTimes {
-			req.retryCounter++
+		if req.RetryCount() < c.opt.RetryTimes {
+			req.RetryCountInc()
 			internal.Logger.Println("Retrying:", req.URL.String(), resp.StatusCode)
 			return c.DoRequest(req)
 		}
+		return nil, fmt.Errorf("error due to status code %d", resp.StatusCode)
 	}
 
 	return resp, err
@@ -170,13 +171,14 @@ func (c *Client) doRequestClient(req *Request) (*Response, error) {
 
 // doRequestChrome opens up a new chrome instance and makes request
 func (c *Client) doRequestChrome(req *Request) (*Response, error) {
+	ctx := req.Context()
 	// Set remote allocator or use local chrome instance
 	var allocCtx context.Context
 	var allocCancel context.CancelFunc
 	if c.opt.RemoteAllocatorURL != "" {
-		allocCtx, allocCancel = chromedp.NewRemoteAllocator(context.Background(), c.opt.RemoteAllocatorURL)
+		allocCtx, allocCancel = chromedp.NewRemoteAllocator(ctx, c.opt.RemoteAllocatorURL)
 	} else {
-		allocCtx, allocCancel = chromedp.NewExecAllocator(context.Background(), c.opt.AllocatorOptions...)
+		allocCtx, allocCancel = chromedp.NewExecAllocator(ctx, c.opt.AllocatorOptions...)
 	}
 	defer allocCancel()
 
