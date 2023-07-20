@@ -2,6 +2,7 @@ package geziyor
 
 import (
 	"context"
+	"time"
 
 	"github.com/chromedp/chromedp"
 	"github.com/toqueteos/geziyor/cache"
@@ -144,6 +145,9 @@ func NewGeziyor(ctx context.Context, opt *Options) *Geziyor {
 func (g *Geziyor) Start(ctx context.Context) {
 	internal.Logger.Println("Scraping Started")
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	// Metrics
 	if g.Opt.MetricsType == metrics.Prometheus || g.Opt.MetricsType == metrics.ExpVar {
 		metricsServer := metrics.StartMetricsServer(g.Opt.MetricsType)
@@ -154,10 +158,10 @@ func (g *Geziyor) Start(ctx context.Context) {
 	g.startExporters()
 
 	// Wait for SIGINT (interrupt) signal.
-	shutdownChan := make(chan os.Signal, 1)
 	shutdownDoneChan := make(chan struct{})
-	signal.Notify(shutdownChan, os.Interrupt)
-	go g.interruptSignalWaiter(shutdownChan, shutdownDoneChan)
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
+	defer stop()
+	go g.interruptSignalWaiter(ctx, shutdownDoneChan)
 
 	// Start Requests
 	if g.Opt.StartRequestsFunc != nil {
@@ -312,13 +316,17 @@ func (g *Geziyor) recoverMe() {
 }
 
 // interruptSignalWaiter waits data from provided channels and stops scraper if shutdownChan channel receives SIGINT
-func (g *Geziyor) interruptSignalWaiter(shutdownChan chan os.Signal, shutdownDoneChan chan struct{}) {
+func (g *Geziyor) interruptSignalWaiter(ctx context.Context, shutdownDoneChan chan struct{}) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case <-shutdownChan:
+		case <-ticker.C:
+			// tick
+		case <-ctx.Done():
 			internal.Logger.Println("Received SIGINT, shutting down gracefully. Send again to force")
 			g.shutdown = true
-			signal.Stop(shutdownChan)
 		case <-shutdownDoneChan:
 			return
 		}
