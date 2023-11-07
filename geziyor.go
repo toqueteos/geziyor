@@ -179,6 +179,11 @@ func (g *Geziyor) Start(ctx context.Context) {
 	internal.Logger.Println("Scraping Finished")
 }
 
+// Stop disables any more requests and signals all currently ongoing requests to finish
+func (g *Geziyor) Stop() {
+	g.shutdown = true
+}
+
 // Get issues a GET to the specified URL.
 func (g *Geziyor) Get(ctx context.Context, url string, callback ParseFunc) {
 	req, err := client.NewRequest(ctx, "GET", url, nil)
